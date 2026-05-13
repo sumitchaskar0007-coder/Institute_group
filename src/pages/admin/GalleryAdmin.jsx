@@ -28,10 +28,15 @@ const GalleryAdmin = () => {
 
   const fetchItems = async () => {
     try {
+      setLoading(true);
       const response = await getGalleryImages();
-      setItems(response.data);
+      // Ensure we're setting an array even if response.data is undefined or not an array
+      const galleryData = response?.data || [];
+      setItems(Array.isArray(galleryData) ? galleryData : []);
     } catch (error) {
+      console.error('Fetch error:', error);
       toast.error('Failed to fetch gallery items');
+      setItems([]); // Reset to empty array on error
     } finally {
       setLoading(false);
     }
@@ -126,54 +131,84 @@ const GalleryAdmin = () => {
     setInputMethod('file');
   };
 
- // Update the renderMediaPreview function in GalleryAdmin.jsx
-const renderMediaPreview = (item) => {
-  if (item.mediaType === 'video') {
-    // Check if it's a YouTube/Vimeo URL
-    const isYouTube = item.mediaUrl.includes('youtube.com') || item.mediaUrl.includes('youtu.be');
-    const isVimeo = item.mediaUrl.includes('vimeo.com');
+  // Helper function to get embed URL for YouTube/Vimeo
+  const getEmbedUrl = (url) => {
+    if (!url) return '';
     
-    if (isYouTube || isVimeo) {
-      return (
-        <div className="w-full h-48 bg-gray-900 relative">
-          <iframe
-            src={item.embedUrl || item.mediaUrl}
-            className="w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title={item.title}
-          />
-        </div>
-      );
+    // YouTube
+    const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+    const youtubeMatch = url.match(youtubeRegex);
+    if (youtubeMatch) {
+      return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+    }
+    
+    // Vimeo
+    const vimeoRegex = /vimeo\.com\/(\d+)/;
+    const vimeoMatch = url.match(vimeoRegex);
+    if (vimeoMatch) {
+      return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    }
+    
+    return url;
+  };
+
+  // Update the renderMediaPreview function
+  const renderMediaPreview = (item) => {
+    if (!item) return null;
+    
+    if (item.mediaType === 'video') {
+      // Check if it's a YouTube/Vimeo URL
+      const isYouTube = item.mediaUrl && (item.mediaUrl.includes('youtube.com') || item.mediaUrl.includes('youtu.be'));
+      const isVimeo = item.mediaUrl && item.mediaUrl.includes('vimeo.com');
+      
+      if (isYouTube || isVimeo) {
+        const embedUrl = getEmbedUrl(item.mediaUrl);
+        return (
+          <div className="w-full h-48 bg-gray-900 relative">
+            <iframe
+              src={embedUrl}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={item.title || 'Video'}
+            />
+          </div>
+        );
+      } else if (item.mediaUrl) {
+        return (
+          <video
+            src={item.mediaUrl}
+            className="w-full h-48 object-cover"
+            controls
+            preload="metadata"
+          >
+            <source src={item.mediaUrl} type="video/mp4" />
+            <source src={item.mediaUrl} type="video/webm" />
+            <source src={item.mediaUrl} type="video/ogg" />
+            Your browser does not support the video tag.
+          </video>
+        );
+      } else {
+        return (
+          <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+            <span className="text-gray-500">Video not available</span>
+          </div>
+        );
+      }
     } else {
       return (
-        <video
-          src={item.mediaUrl}
+        <img
+          src={item.mediaUrl || 'https://via.placeholder.com/400x300?text=No+Image'}
+          alt={item.title || 'Gallery item'}
           className="w-full h-48 object-cover"
-          controls
-          preload="metadata"
-        >
-          <source src={item.mediaUrl} type="video/mp4" />
-          <source src={item.mediaUrl} type="video/webm" />
-          <source src={item.mediaUrl} type="video/ogg" />
-          Your browser does not support the video tag.
-        </video>
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+          }}
+        />
       );
     }
-  } else {
-    return (
-      <img
-        src={item.mediaUrl}
-        alt={item.title}
-        className="w-full h-48 object-cover"
-        onError={(e) => {
-          e.target.onerror = null;
-          e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
-        }}
-      />
-    );
-  }
-};
+  };
 
   if (loading) {
     return (
@@ -199,46 +234,61 @@ const renderMediaPreview = (item) => {
           </button>
         </div>
 
-        {/* Items Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.map((item) => (
-            <div key={item._id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              {renderMediaPreview(item)}
-              <div className="p-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    item.mediaType === 'video' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                    {item.mediaType}
-                  </span>
-                </div>
-                {item.description && (
-                  <p className="text-gray-600 mt-1">{item.description}</p>
-                )}
-                <div className="mt-2">
-                  <span className="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700">
-                    {item.category}
-                  </span>
-                </div>
-                <div className="mt-4 flex space-x-2">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item._id)}
-                    className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors"
-                  >
-                    Delete
-                  </button>
+        {/* Items Grid - Added safety check for items array */}
+        {items && items.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {items.map((item) => (
+              <div key={item._id || Math.random()} className="bg-white rounded-lg shadow-md overflow-hidden">
+                {renderMediaPreview(item)}
+                <div className="p-4">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-lg font-semibold text-gray-900">{item.title || 'Untitled'}</h3>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      item.mediaType === 'video' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {item.mediaType || 'image'}
+                    </span>
+                  </div>
+                  {item.description && (
+                    <p className="text-gray-600 mt-1">{item.description}</p>
+                  )}
+                  <div className="mt-2">
+                    <span className="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700">
+                      {item.category || 'general'}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex space-x-2">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item._id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-white rounded-lg shadow-md">
+            <p className="text-gray-500 text-lg">No gallery items found</p>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              Add Your First Item
+            </button>
+          </div>
+        )}
 
         {/* Modal */}
         {showModal && (
