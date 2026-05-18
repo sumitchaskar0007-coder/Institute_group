@@ -31,19 +31,55 @@ export const getAdminProfile = () => api.get('/auth/profile');
 
 // Gallery APIs
 // Update gallery functions in api.js
-export const getGalleryImages = () => api.get('/gallery');
-export const getGalleryImageById = (id) => api.get(`/gallery/${id}`);
-export const createGalleryImage = (data) => {
-  // data is already FormData
-  return api.post('/gallery', data, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
+// Gallery APIs - Updated
+export const getGalleryImages = async () => {
+  const response = await api.get('/gallery');
+  // Transform backend response to array for frontend compatibility
+  if (response.data && response.data.items) {
+    return { data: response.data.items };
+  }
+  return response;
 };
-export const updateGalleryImage = (id, data) => {
-  return api.put(`/gallery/${id}`, data, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
+
+export const createGalleryImage = async (data) => {
+  // Determine which endpoint to use based on media type and input method
+  const mediaType = data.get('mediaType');
+  const hasFile = data.has('media') && data.get('media');
+  const hasUrl = data.has('mediaUrl') && data.get('mediaUrl');
+  
+  if (hasFile) {
+    // File upload - use appropriate endpoint
+    const endpoint = mediaType === 'video' ? '/gallery/video' : '/gallery/image';
+    return await api.post(endpoint, data, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  } else if (hasUrl) {
+    // URL upload
+    const urlData = {
+      title: data.get('title'),
+      description: data.get('description'),
+      type: mediaType,
+      url: data.get('mediaUrl'),
+      category: data.get('category')
+    };
+    return await api.post('/gallery/from-url', urlData);
+  }
+  
+  throw new Error('No media provided');
 };
+
+export const updateGalleryImage = async (id, data) => {
+  // For updates, convert FormData to JSON since backend update doesn't handle files
+  const updateData = {
+    title: data.get('title'),
+    description: data.get('description'),
+    category: data.get('category'),
+    type: data.get('mediaType')
+  };
+  
+  return await api.put(`/gallery/${id}`, updateData);
+};
+
 export const deleteGalleryImage = (id) => api.delete(`/gallery/${id}`);
 // Announcement APIs
 export const getAnnouncements = () => api.get('/announcements');
