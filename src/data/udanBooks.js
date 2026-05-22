@@ -41,6 +41,7 @@ export const udanBooks = {
   },
   9: {
     title: "Udan 9",
-    cover: "/assets/books/udan.png"
+    cover: "/assets/books/udan.png",
+    pdf: "/assets/books/Udan9.pdf"
   }
 };
